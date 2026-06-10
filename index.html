@@ -290,13 +290,38 @@
   </footer>
 
   <script>
-    // WhatsApp Group Link
-    const WHATSAPP_LINK = 'https://chat.whatsapp.com/GWx8YWrVKdTEWqzblHqrmp';
+    // ===== Redirecionador de Grupos VIP =====
+    // O bot (Baileys/Railway) decide em tempo real qual grupo ainda tem vaga.
+    const BOT_URL = 'https://pascoto-aviseme-bot-production.up.railway.app';
+    const WHATSAPP_FALLBACK = 'https://chat.whatsapp.com/JWFVUNIamHRFIGUto6Qj1C'; // grupo de emergência (grupo 2, com vaga) se o bot não responder
+    const FETCH_TIMEOUT_MS = 2500;
 
-    // CTA Button Handler
-    function handleCTA() {
+    // Consulta o bot e devolve o link do grupo com vaga (cai no fallback se falhar/demorar)
+    async function buscarLinkGrupo() {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+        const r = await fetch(BOT_URL + '/grupo-disponivel', { signal: ctrl.signal });
+        clearTimeout(t);
+        if (!r.ok) throw new Error('status ' + r.status);
+        const j = await r.json();
+        return j.link || WHATSAPP_FALLBACK;
+      } catch (e) {
+        return WHATSAPP_FALLBACK;
+      }
+    }
+
+    // CTA Button Handler — abre o grupo VIP com vaga decidido pelo bot
+    async function handleCTA() {
       if (window.fbq) fbq('track', 'Lead');
-      window.open(WHATSAPP_LINK, '_blank');
+      // abre a aba já no clique (evita bloqueio de popup) e redireciona após consultar o bot
+      const popup = window.open('about:blank', '_blank');
+      const link = await buscarLinkGrupo();
+      if (popup && !popup.closed) {
+        popup.location.href = link;
+      } else {
+        window.location.href = link; // popup bloqueado -> mesma aba
+      }
     }
 
     // Close Modal
