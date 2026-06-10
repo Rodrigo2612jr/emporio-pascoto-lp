@@ -290,6 +290,27 @@
   </footer>
 
   <script>
+    // ===== UTMs (medicao de campanha: gvip_video x gvip_imagem) =====
+    // Captura da query string na chegada, persiste em localStorage e anexa no Lead do Pixel.
+    const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+    const UTM_STORAGE_KEY = 'pascoto_utms';
+
+    function capturarUTMs() {
+      let salvas = {};
+      try { salvas = JSON.parse(localStorage.getItem(UTM_STORAGE_KEY)) || {}; } catch (e) {}
+      const qs = new URLSearchParams(window.location.search);
+      const veioUTM = UTM_KEYS.some(k => (qs.get(k) || '').trim() !== '');
+      const utms = {};
+      UTM_KEYS.forEach(k => {
+        // URL com UTM = visita nova de campanha (substitui o conjunto inteiro);
+        // URL sem UTM = mantem o que ja estava salvo (nunca sobrescreve com vazio)
+        utms[k] = veioUTM ? (qs.get(k) || '').trim() : (salvas[k] || '');
+      });
+      try { localStorage.setItem(UTM_STORAGE_KEY, JSON.stringify(utms)); } catch (e) {}
+      return utms;
+    }
+    const UTMS = capturarUTMs();
+
     // ===== Redirecionador de Grupos VIP =====
     // O bot (Baileys/Railway) decide em tempo real qual grupo ainda tem vaga.
     const BOT_URL = 'https://pascoto-aviseme-bot-production.up.railway.app';
@@ -313,7 +334,14 @@
 
     // CTA Button Handler — abre o grupo VIP com vaga decidido pelo bot
     async function handleCTA() {
-      if (window.fbq) fbq('track', 'Lead');
+      // Lead com as UTMs como custom data (vazias se trafego organico) — evento segue contando igual
+      if (window.fbq) fbq('track', 'Lead', {
+        utm_source: UTMS.utm_source,
+        utm_medium: UTMS.utm_medium,
+        utm_campaign: UTMS.utm_campaign,
+        utm_content: UTMS.utm_content,
+        utm_term: UTMS.utm_term,
+      });
       // abre a aba já no clique (evita bloqueio de popup) e redireciona após consultar o bot
       const popup = window.open('about:blank', '_blank');
       const link = await buscarLinkGrupo();
