@@ -290,7 +290,8 @@
     // O bot (Baileys/Railway) decide em tempo real qual grupo ainda tem vaga.
     const BOT_URL = 'https://pascoto-aviseme-bot-production.up.railway.app';
     const WHATSAPP_FALLBACK = 'https://chat.whatsapp.com/JWFVUNIamHRFIGUto6Qj1C'; // grupo de emergência (grupo 2, com vaga) se o bot não responder
-    const FETCH_TIMEOUT_MS = 2500;
+    const FETCH_TIMEOUT_MS = 8000;  // consulta comeca na abertura da pagina; o bot leva 4 a 5 s sem cache
+    const ESPERA_CLIQUE_MS = 2500;  // no clique, espera no maximo isso pela consulta que ja esta em andamento
 
     // Consulta o bot e devolve o link do grupo com vaga (cai no fallback se falhar/demorar)
     async function buscarLinkGrupo() {
@@ -307,6 +308,9 @@
       }
     }
 
+    // 15/10: pergunta ao bot assim que a pagina abre; quando a pessoa clica a resposta ja chegou
+    const LINK_GRUPO = buscarLinkGrupo();
+
     // CTA Button Handler: abre o grupo VIP com vaga decidido pelo bot
     async function handleCTA() {
       // Lead com as UTMs como custom data (vazias se trafego organico); conta 1 vez por visita, clique repetido nao duplica
@@ -321,7 +325,10 @@
       });
       // abre a aba já no clique (evita bloqueio de popup) e redireciona após consultar o bot
       const popup = window.open('about:blank', '_blank');
-      const link = await buscarLinkGrupo();
+      const link = await Promise.race([
+        LINK_GRUPO,
+        new Promise(ok => setTimeout(() => ok(WHATSAPP_FALLBACK), ESPERA_CLIQUE_MS)),
+      ]);
       if (popup && !popup.closed) {
         popup.location.href = link;
       } else {
